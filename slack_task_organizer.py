@@ -58,32 +58,32 @@ def analyze_with_claude(mentions):
     if not mentions:
         return "過去24時間にメンションはありませんでした。"
     
-    # メンション情報をテキストに整形
+    # メンション情報をテキストに整形（簡潔に）
     mentions_text = "\n\n".join([
-        f"【{i+1}】\n"
-        f"投稿者: {m['user']}\n"
-        f"チャンネル: #{m['channel']}\n"
-        f"内容: {m['text']}\n"
-        f"リンク: {m['permalink']}"
+        f"[{i+1}] {m['user']} in #{m['channel']}\n{m['text']}"
         for i, m in enumerate(mentions)
     ])
     
     prompt = f"""以下は過去24時間にSlackで私宛にメンションされた投稿です。
 これらをタスクとして分析し、以下の形式で整理してください：
 
-## 🔴 緊急度高・重要度高（今日中に対応）
+*🔴 緊急度高・重要度高（今日中）*
 
-## 🟡 緊急度中・重要度高（今週中に対応）
+*🟡 緊急度中・重要度高（今週中）*
 
-## 🟢 緊急度低・重要度中（来週以降でOK）
+*🟢 緊急度低・重要度中（来週以降）*
 
-## ⚪ 情報共有のみ（対応不要）
+*⚪ 情報共有のみ（対応不要）*
 
-各タスクには以下を含めてください：
-- タスク概要（簡潔に）
-- 誰からの依頼か
-- どのチャンネルか
-- リンク
+各タスクは以下の形式で1行にまとめてください：
+• タスク概要 (依頼者名 / #チャンネル名)
+
+重要な注意事項：
+- 見出し以外に太字（**）や装飾は使わない
+- 各タスクは1行で簡潔に
+- リンクは省略（必要なら元メッセージから確認可能）
+- 箇条書きは「•」のみ使用
+- 全体を2000文字以内に収める
 
 ---
 
@@ -114,17 +114,45 @@ def send_dm_to_self(organized_tasks, user_id):
         response = slack_client.conversations_open(users=[user_id])
         dm_channel_id = response["channel"]["id"]
         
-        # メッセージを送信
-        timestamp = datetime.now().strftime("%Y年%m月%d日 %H:%M")
-        message = f"📋 *タスク整理レポート* ({timestamp})\n\n{organized_tasks}"
+        # メッセージを送信（Slackの制限: 40,000文字だが、安全のため3,900文字で分割）
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+        header = f"📋 タスク整理レポート ({timestamp})\n\n"
         
-        slack_client.chat_postMessage(
-            channel=dm_channel_id,
-            text=message,
-            mrkdwn=True
-        )
+        max_length = 3900
+        messages = []
         
-        print("✅ DMの送信に成功しました")
+        if len(organized_tasks) <= max_length:
+            messages.append(header + organized_tasks)
+        else:
+            # 緊急度ごとに分割して送信
+            sections = organized_tasks.split('\n\n')
+            current_message = header
+            
+            for section in sections:
+                if len(current_message) + len(section) + 2 <= max_length:
+                    current_message += section + "\n\n"
+                else:
+                    messages.append(current_message.strip())
+                    current_message = section + "\n\n"
+            
+            if current_message.strip():
+                messages.append(current_message.strip())
+        
+        # メッセージを順次送信
+        for i, msg in enumerate(messages):
+            if i > 0:
+                # 2つ目以降のメッセージには続きであることを示す
+                msg = f"（続き {i+1}/{len(messages)}）\n\n" + msg
+            
+            slack_client.chat_postMessage(
+                channel=dm_channel_id,
+                text=msg,
+                mrkdwn=True,
+                unfurl_links=False,  # リンクプレビューを無効化
+                unfurl_media=False
+            )
+        
+        print(f"✅ DMの送信に成功しました（{len(messages)}件）")
         
     except SlackApiError as e:
         print(f"DM送信エラー: {e.response['error']}")
