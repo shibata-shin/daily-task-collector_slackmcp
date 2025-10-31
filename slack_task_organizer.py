@@ -37,6 +37,22 @@ def get_mentions_last_24h(user_id):
         
         mentions = []
         for match in result["messages"]["matches"]:
+            ch = match.get("channel", {}) or {}
+            ch_id = ch.get("id", "")
+            
+            # --- 自分とのDMだけを除外する条件を追加 ---
+            if ch_id.startswith("D"):
+                try:
+                    info = slack_client.conversations_info(channel=ch_id)
+                    members = info["channel"].get("members", [])
+                    # 自分しか含まれていないDMならスキップ
+                    if len(members) == 1 and members[0] == user_id:
+                        continue
+                except SlackApiError:
+                    # DM以外や取得失敗時はスキップせず処理継続
+                    pass
+            # ---------------------------------------
+            
             msg_timestamp = float(match["ts"])
             if msg_timestamp >= oldest:
                 mentions.append({
