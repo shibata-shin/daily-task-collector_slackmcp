@@ -1,0 +1,35 @@
+name: Slack Task Organizer
+
+on:
+  schedule:
+    # 毎日午前9時（JST）に実行 = UTC 0:00
+    - cron: '0 0 * * *'
+    # 毎日午後6時（JST）に実行 = UTC 9:00
+    - cron: '0 9 * * *'
+  
+  # 手動実行も可能にする
+  workflow_dispatch:
+
+jobs:
+  organize-tasks:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install anthropic slack-sdk
+      
+      - name: Run task organizer
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_USER_TOKEN: ${{ secrets.SLACK_USER_TOKEN }}
+        run: |
+          python slack_task_organizer.py
