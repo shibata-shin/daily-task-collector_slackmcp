@@ -2,10 +2,8 @@ name: Slack Task Organizer
 
 on:
   schedule:
-    # 毎日午前9時（JST）に実行 = UTC 0:00
-    - cron: '0 0 * * *'
-    # 毎日午後6時（JST）に実行 = UTC 9:00
-    - cron: '0 9 * * *'
+    # 毎日 午前6時（JST）に実行 = UTC 21:00（前日）
+    - cron: '0 21 * * *'
   
   # 手動実行も可能にする
   workflow_dispatch:
