@@ -1,6 +1,6 @@
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from anthropic import Anthropic
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -70,17 +70,17 @@ def analyze_with_claude(mentions):
 【重要な指示】
 - Slackで見やすいよう、シンプルな書式で出力してください
 - **太字**は使わず、見出しに絵文字を使用してください
-- メンションに言及する際は必ず「投稿者名（チャンネル名）」と「URL」を含めてください
+- メンションに言及する際は必ず「投稿者名（チャンネル名）」と「SlackスレッドのURL」を含めてください
 - 箇条書きは「・」を使い、インデントで階層を表現してください
 
 【要約の構成】
 1. 📊 全体サマリー（1-2文で簡潔に）
 
 2. 🔴 緊急対応が必要（優先度順、最大5件）
-   各項目：投稿者（チャンネル）、内容の要点、URL
+   各項目：投稿者（チャンネル）、内容の要点、SlackスレッドのURL
 
 3. 🟡 重要だが緊急ではない（最大5件）
-   各項目：投稿者（チャンネル）、内容の要点、URL
+   各項目：投稿者（チャンネル）、内容の要点、SlackスレッドのURL
 
 4. 📋 その他（カテゴリ別に簡潔に）
    ・質問・確認事項
@@ -148,7 +148,11 @@ def send_dm_to_self(organized_tasks, user_id):
         dm_channel_id = response["channel"]["id"]
         
         # メッセージを送信（Slackの制限: 40,000文字だが、安全のため3,900文字で分割）
-        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
+
+        # 日本時間(JST = UTC+9)に変換
+        jst = timezone(timedelta(hours=9))
+        timestamp = datetime.now(jst).strftime("%Y/%m/%d %H:%M")
+        # timestamp = datetime.now().strftime("%Y/%m/%d %H:%M")
         header = f"📋 タスク整理レポート ({timestamp})\n\n"
         
         max_length = 3900
